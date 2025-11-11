@@ -1,4 +1,5 @@
 # 🏗️ AWS 3-Tier Flask Application
+![Deploy Flask App to AWS EC2](https://github.com/omdivekar14/Aws-3tier-project/actions/workflows/deploy.yml/badge.svg)
 
 A scalable 3-tier web application deployed on AWS using Terraform and Docker.
 
