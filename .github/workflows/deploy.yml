@@ -1,4 +1,4 @@
-name: Deploy Flask App to AWS EC2
+name: 🚀 Deploy Flask App to AWS EC2 (Docker)
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Login to Docker Hub
+    - name: Log in to Docker Hub
       run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
     - name: Build image
@@ -21,14 +21,41 @@ jobs:
     - name: Push image
       run: docker push "${{ secrets.DOCKER_IMAGE }}:latest"
 
-    - name: Deploy on EC2
+    - name: Deploy on EC2 (install docker if missing + run container)
       uses: appleboy/ssh-action@v1.2.0
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          docker pull "${{ secrets.DOCKER_IMAGE }}:latest"
-          docker stop flaskapp || true
-          docker rm flaskapp || true
-          docker run -d -p 80:80 --name flaskapp "${{ secrets.DOCKER_IMAGE }}:latest"
+          set -e
+
+          # Install Docker if not present
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Installing Docker..."
+            sudo apt-get update -y
+            sudo apt-get install -y ca-certificates curl gnupg
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+              $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
+              sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update -y
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+            sudo usermod -aG docker $USER || true
+          fi
+
+          # Stop nginx if it’s occupying port 80
+          if systemctl is-active --quiet nginx; then
+            sudo systemctl stop nginx
+          fi
+
+          # Pull and run the new container
+          sudo docker pull "${{ secrets.DOCKER_IMAGE }}:latest"
+          sudo docker stop flaskapp || true
+          sudo docker rm flaskapp || true
+          sudo docker run -d --restart unless-stopped -p 80:80 --name flaskapp "${{ secrets.DOCKER_IMAGE }}:latest"
+
+          # Show status
+          sudo docker ps
